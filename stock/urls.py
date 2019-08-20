@@ -16,9 +16,11 @@ Including another URLconf
 from django.contrib import admin
 from django.conf.urls import url
 from django.urls import path
-from .views import dbMessageView
+from .views import db_message_view
+from .views import index
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    url(r'^$',dbMessageView.db_message)
+    url(r'^$',index.index),
+    url(r'db/', db_message_view.db_message)
 ]
