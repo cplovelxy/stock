@@ -1,3 +1,5 @@
+
+
 class serialize_generic(object):
 
     @classmethod
