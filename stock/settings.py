@@ -55,7 +55,7 @@ ROOT_URLCONF = 'stock.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')]
+        'DIRS': [os.path.join(BASE_DIR, 'frontend')]
         ,
         'APP_DIRS': True,
         'OPTIONS': {
@@ -80,8 +80,16 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'test',
         'USER': 'root',
-        'PASSWORD': 'cp5679192',
-        'HOST':'localhost',
+        'PASSWORD': 'YOUxin@com',
+        'HOST':'10.210.110.117',
+        'PORT':'3306',
+    },
+    'stock': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'stock_order_center',
+        'USER': 'root',
+        'PASSWORD': 'YOUxin@com',
+        'HOST':'10.210.110.117',
         'PORT':'3306',
     },
 }
