@@ -17,10 +17,12 @@ from django.contrib import admin
 from django.conf.urls import url
 from django.urls import path
 from .views import db_message_view
+from .views import StockTestView
 from .views import index
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     url(r'^$',index.index),
-    url(r'db/', db_message_view.db_message)
+    url(r'db/', db_message_view.db_message),
+    url(r'stock-add/', StockTestView.stock_add_order)
 ]
