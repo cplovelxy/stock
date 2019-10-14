@@ -3,6 +3,8 @@ import re
 
 import scrapy
 
+from ..utils.house_utils import houseUtils
+
 
 class ftxHouse(scrapy.Spider):
     new_house_dict = {'last': ''}
@@ -86,36 +88,33 @@ class ftxHouse(scrapy.Spider):
         else:
             old_house_redirect_url = response.css('div.redirect a::attr(href)').get()
             old_house_next_page = old_house_redirect_url
-            if not old_house_redirect_url is None:
+            if not (old_house_redirect_url is None):
                 print("获取到的二手房重定向的链接为" + str(old_house_next_page))
-                yield scrapy.Request(url=str(old_house_next_page), callback=self.old_house,
+                yield scrapy.Request(url=str(old_house_next_page), callback=self.parse,
                                      cookies=ftxHouse.old_house_cookies,
                                      headers=ftxHouse.old_house_headers)
             else:
-                ftxHouse.old_house(self, response)
+                if ftxHouse.old_house_dict.get('last') == '':
+                    last_url = response.css('#list_D10_15 p a::attr(href)')[1].get()
+                    ftxHouse.old_house_dict['last'] = str(int(str(last_url).split('i3')[1].replace("/", '')))
+                page_number = int(int(re.sub(r"\?.*", "", str(response.url).split('i3')[1])) + 1)
+                if int(ftxHouse.old_house_dict.get('last')) < page_number:
+                    logging.info("爬二手房信息结束，当前页码为", page_number)
+                    return
 
-            # ftxHouse.old_house(self, response)
-            # # 二手房下一页内容
-            # next_page = ftxHouse.old_house_url + 'i3' + str(int(str(url).split('i3')[1].replace("/", '')) + 1)
-            # print("获取到的二手房下一页连接为" + str(next_page))
-            # if not (next_page is None):
-            #     yield scrapy.Request(url=next_page, callback=self.parse,
-            #                          cookies=ftxHouse.old_house_cookies,
-            #                          headers=ftxHouse.old_house_headers)
+                ftxHouse.old_house(self, response)
+                next_page = ftxHouse.old_house_url + 'i3' + str(page_number)
+                print("获取到的二手房下一页的链接为", next_page)
+                yield scrapy.Request(url=next_page, callback=self.parse,
+                                     cookies=ftxHouse.old_house_cookies,
+                                     headers=ftxHouse.old_house_headers)
 
     def new_house(self, response):
         all_house_li = response.css('#newhouse_loupai_list ul')
         house_items = []
+        houseUtils.export_item(response)
         for index, house_li in enumerate(all_house_li):
             try:
-                # it = ItemLoader(item=NewHouse(), response=response)
-                # it.add_css('house_image', '#newhouse_loupai_list ul div.clearfix a img::attr(src)')
-                # it.add_css('house_name','#newhouse_loupai_list ul div.nlc_details a::text')
-                # it.add_css('house_price' , '#newhouse_loupai_list ul div.nlc_details div.nhouse_price')
-                # it.add_css('house_address' ,'#newhouse_loupai_list ul div.nlc_details div.relative_message a::attr(title)')
-                # it.load_item()
-                # print(it.__dict__)
-
                 house_dict = {}
                 # 图片地址
                 house_image = house_li.css('div.clearfix a img::attr(src)').get()
@@ -163,14 +162,7 @@ class ftxHouse(scrapy.Spider):
                 house_size = house_dl.css('dd.price_right span::text')[1].get()
                 house_dict['house_size'] = house_size
                 house_items.append(house_dict)
-            except BaseException:
-                print("二手房信息获取失败，原因为", BaseException.__cause__)
+            except Exception as e:
+                logging.info("二手房信息获取失败，原因为", e)
 
         print("二手房信息为", house_items)
-
-        next_page = ftxHouse.old_house_url + 'i3' + str(
-            int(int(re.sub(r"\?.*", "", str(response.url).split('i3')[1])) + 1))
-        print("获取到的二手房下一页的链接为", next_page)
-        yield scrapy.Request(url=next_page, callback=self.parse,
-                             cookies=ftxHouse.old_house_cookies,
-                             headers=ftxHouse.old_house_headers)
