@@ -93,7 +93,7 @@ FEED_EXPORT_ENCODING = 'utf-8'
 # See https://doc.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
 # 'crawler.middlewares.CrawlerDownloaderMiddleware': 543,
-'crawler.middlewares.EbaySpiderMiddleware': 542
+'crawler.middlewares.MyUserAgentSpiderMiddleware': 542
 }
 
 # Enable or disable extensions

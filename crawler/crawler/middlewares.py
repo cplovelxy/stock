@@ -105,7 +105,7 @@ class CrawlerDownloaderMiddleware(object):
         spider.logger.info('Spider opened: %s' % spider.name)
 
 
-class EbaySpiderMiddleware(UserAgentMiddleware):
+class MyUserAgentSpiderMiddleware(UserAgentMiddleware):
     def __init__(self, user_agent):
         self.user_agent = user_agent
 

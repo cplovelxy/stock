@@ -1,9 +1,11 @@
 import logging
+import os
 import re
 
 import scrapy
+import xlwt
 
-from ..utils.house_utils import houseUtils
+from .export import export
 
 
 class ftxHouse(scrapy.Spider):
@@ -12,6 +14,8 @@ class ftxHouse(scrapy.Spider):
     name = 'ftx_house'
     new_house_url = 'https://sz.newhouse.fang.com/house/s/'
     old_house_url = 'https://sz.esf.fang.com/house/'
+    new_house_array_message = []
+    old_house_array_message = []
     new_house_cookies = {'city': 'sz', 'global_cookie': 'hkfpwfaxeyr61sr9g69uw0jok57jzxj6u2a',
                          'Integrateactivity': 'notincludemc', 'new_search_uid': '973a8b4bacc9fd160fd25bf6e6e3971f',
                          '__utmz': '147393320.1567156397.3.3.utmcsr=sz.newhouse.fang.com|utmccn=(referral)|utmcmd=referral|utmcct=/house/s/b92/',
@@ -77,6 +81,7 @@ class ftxHouse(scrapy.Spider):
                 ftxHouse.new_house_dict['last'] = str(int(str(last_url).split('b9')[1].replace("/", '')))
             # 判断有没有到达尾页
             if int(ftxHouse.new_house_dict.get('last')) < int(page_number):
+                ftxHouse.export_new_house()
                 return
             # 解析数据
             ftxHouse.new_house(self, response)
@@ -95,11 +100,16 @@ class ftxHouse(scrapy.Spider):
                                      headers=ftxHouse.old_house_headers)
             else:
                 if ftxHouse.old_house_dict.get('last') == '':
-                    last_url = response.css('#list_D10_15 p a::attr(href)')[1].get()
-                    ftxHouse.old_house_dict['last'] = str(int(str(last_url).split('i3')[1].replace("/", '')))
+                    # 这里如果报错需要去房添加去输入图片验证码
+                    try:
+                        last_url = response.css('#list_D10_15 p a::attr(href)')[1].get()
+                        ftxHouse.old_house_dict['last'] = str(int(str(last_url).split('i3')[1].replace("/", '')))
+                    except Exception as e:
+                        logging.error('爬取房天下二手房信息需要图片验证码，请前往', response.url, '验证')
                 page_number = int(int(re.sub(r"\?.*", "", str(response.url).split('i3')[1])) + 1)
                 if int(ftxHouse.old_house_dict.get('last')) < page_number:
                     logging.info("爬二手房信息结束，当前页码为", page_number)
+                    ftxHouse.export_old_house()
                     return
 
                 ftxHouse.old_house(self, response)
@@ -111,8 +121,6 @@ class ftxHouse(scrapy.Spider):
 
     def new_house(self, response):
         all_house_li = response.css('#newhouse_loupai_list ul')
-        house_items = []
-        houseUtils.export_item(response)
         for index, house_li in enumerate(all_house_li):
             try:
                 house_dict = {}
@@ -123,21 +131,19 @@ class ftxHouse(scrapy.Spider):
                 house_name = house_li.css('div.nlc_details a::text').get()
                 house_dict['house_name'] = house_name
                 # 房子价格
-                house_price = house_li.css('div.nlc_details div.nhouse_price')[index].get()
+                house_price = house_li.css('div.nlc_details div.nhouse_price span::text').get() + \
+                              house_li.css('div.nlc_details div.nhouse_price em::text').get()
                 house_dict['house_price'] = house_price
                 # 房子地址
                 house_address = house_li.css('div.nlc_details div.relative_message a::attr(title)').get()
                 house_dict['house_address'] = house_address
                 # 房子信息集合
-                house_items.append(house_dict)
+                ftxHouse.new_house_array_message.append(house_dict)
             except BaseException as e:
                 logging.info("获取新房信息异常，原因：", e)
 
-        print("新房信息为", house_items)
-
     def old_house(self, response):
         all_house_dl = response.css('div.shop_list_4 dl')
-        house_items = []
         for house_dl in all_house_dl:
             try:
                 house_dict = {}
@@ -153,16 +159,64 @@ class ftxHouse(scrapy.Spider):
                 house_dict['house_address'] = house_address
                 # 满五优质教育业主急售黄金楼层距3号线华新站约176米
                 house_other = house_dl.css('dd p.clearfix span::text').getall()
-                house_dict['house_other'] = house_other
-                # 房子价格
+                house_dict['house_other_message'] = house_other
+                # 房子总价
                 house_price = house_dl.css('dd.price_right span.red b::text').get() + \
                               house_dl.css('dd.price_right span::text')[0].get()
-                house_dict['house_price'] = house_price
-                # 房子大小
-                house_size = house_dl.css('dd.price_right span::text')[1].get()
-                house_dict['house_size'] = house_size
-                house_items.append(house_dict)
+                house_dict['house_amount_price'] = house_price
+                # 房子单价
+                house_unit_price = house_dl.css('dd.price_right span::text')[1].get()
+                house_dict['house_unit_price'] = house_unit_price
+
+                # 房子面积'63.2㎡                                            '
+                if str(house_base[1]).rfind('㎡') != -1:
+                    house_dict['house_size'] = house_base[1]
+                else:
+                    logging.info(house_base)
+                    house_dict['house_size'] = house_base[3]
+
+                ftxHouse.old_house_array_message.append(house_dict)
             except Exception as e:
                 logging.info("二手房信息获取失败，原因为", e)
 
-        print("二手房信息为", house_items)
+    @staticmethod
+    def export_new_house():
+        new_house_file_path = str(export.export_path()) + os.path.sep + 'ftx_new_house.xls'
+        new_house_header = ['house_image', 'house_name', 'house_price', 'house_address']
+        book = xlwt.Workbook(encoding='utf-8')
+        sheet = book.add_sheet('new_house', cell_overwrite_ok=False)
+        i = 0
+        for k in new_house_header:
+            sheet.write(0, i, k)
+            i = i + 1
+        row = 1
+        for new_house_message in ftxHouse.new_house_array_message:
+            sheet.write(row, 0, new_house_message['house_image'])
+            sheet.write(row, 1, new_house_message['house_name'])
+            sheet.write(row, 2, new_house_message['house_price'])
+            sheet.write(row, 3, new_house_message['house_address'])
+            row = row + 1
+        book.save(new_house_file_path)
+
+    @staticmethod
+    def export_old_house():
+        old_house_file_path = str(export.export_path()) + os.path.sep + 'ftx_old_house.xls'
+        old_house_header = ['house_image', 'house_base', 'house_address', 'house_other_message', 'house_amount_price',
+                            'house_unit_price', 'house_size']
+        book = xlwt.Workbook(encoding='utf-8')
+        sheet = book.add_sheet('old_house', cell_overwrite_ok=False)
+        i = 0
+        for k in old_house_header:
+            sheet.write(0, i, k)
+            i = i + 1
+        row = 1
+        for old_house_message in ftxHouse.old_house_array_message:
+            sheet.write(row, 0, old_house_message['house_image'])
+            sheet.write(row, 1, old_house_message['house_base'])
+            sheet.write(row, 2, old_house_message['house_address'])
+            sheet.write(row, 3, old_house_message['house_other_message'])
+            sheet.write(row, 4, old_house_message['house_amount_price'])
+            sheet.write(row, 5, old_house_message['house_unit_price'])
+            sheet.write(row, 6, old_house_message['house_size'])
+            row = row + 1
+        book.save(old_house_file_path)
